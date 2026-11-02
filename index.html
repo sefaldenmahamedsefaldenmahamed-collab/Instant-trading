@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🎯 قناص الزخم — Momentum Sniper | لوحة التحكم الحية</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>" />
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <div class="mark">🎯</div>
+      <div>
+        <h1>قناص الزخم <small>Momentum Sniper — Binance Spot</small></h1>
+      </div>
+    </div>
+    <span class="badge" id="mode-badge">—</span>
+    <span class="badge"><span class="dot" id="status-dot"></span><span id="status-text">جارٍ الإقلاع…</span></span>
+    <div class="header-meta">
+      <div class="fng-chip" title="مؤشر الخوف والطمع — يتأثر به سلوك البوت تلقائياً">
+        <span>😱 الخوف والطمع</span>
+        <div class="fng-bar"><i id="fng-needle" style="right: 50%"></i></div>
+        <b id="fng-value" class="num">—</b>
+      </div>
+      <div class="fng-chip" title="مدة التشغيل المتواصل">⏱ <b id="uptime" class="num">—</b></div>
+      <div class="fng-chip" title="عدد المتصلين باللوحة">👁 <b id="clients" class="num">1</b></div>
+    </div>
+  </header>
+
+  <main>
+    <!-- KPIs -->
+    <section class="grid kpis">
+      <div class="card kpi"><div class="label">💼 قيمة المحفظة الكلية</div><div class="value num" id="kpi-equity">—</div><div class="sub" id="kpi-equity-sub">—</div></div>
+      <div class="card kpi"><div class="label">💵 الرصيد الحر (USDT)</div><div class="value num" id="kpi-balance">—</div><div class="sub" id="kpi-mode-sub">—</div></div>
+      <div class="card kpi"><div class="label">📊 الربح/الخسارة المحقق</div><div class="value num" id="kpi-pnl">—</div><div class="sub" id="kpi-pnl-sub">—</div></div>
+      <div class="card kpi"><div class="label">🔓 صفقات مفتوحة</div><div class="value num" id="kpi-open">—</div><div class="sub" id="kpi-open-sub">—</div></div>
+      <div class="card kpi"><div class="label">🏆 نسبة النجاح</div><div class="value num" id="kpi-winrate">—</div><div class="sub" id="kpi-winrate-sub">—</div></div>
+    </section>
+
+    <!-- equity + sniper radar -->
+    <section class="grid cols-2" style="margin-top:14px">
+      <div class="card">
+        <h2>📈 منحنى قيمة المحفظة <span class="hint">آخر 160 قراءة — يُحدّث كل دقيقة</span></h2>
+        <canvas id="equity-canvas" height="130"></canvas>
+      </div>
+      <div class="card">
+        <h2>🧠 التعلم الذاتي (Trade Autopsy)</h2>
+        <div id="learned-box" class="learned">بانتظار أول صفقة مغلقة لتكتب البوت تقرير التشريح…</div>
+        <h2 style="margin-top:14px">📋 رادار الإدراج الجديد <span class="hint">عملات معلنة ولم تُدرج بعد</span></h2>
+        <div id="watchlist" class="chips"><span class="empty">لا يوجد إعلانات إدراج مرصودة حالياً</span></div>
+        <h2 style="margin-top:14px">🚫 مرفوضات حكيمة <span class="hint">أعلى المرشحين الذين رفضهم البوت ولماذا</span></h2>
+        <div id="rejections"></div>
+      </div>
+    </section>
+
+    <!-- positions + candidates + events -->
+    <section class="grid cols-3" style="margin-top:14px">
+      <div class="card">
+        <h2>💰 الصفقات المفتوحة</h2>
+        <div id="positions-wrap"><div class="empty">لا توجد صفقات مفتوحة — البوت يراقب السوق…</div></div>
+      </div>
+      <div class="card">
+        <h2>🔥 لوحة صدارة الزخم <span class="hint">أعلى 15 — اضغط «لماذا؟» لتفكيك الدرجة</span></h2>
+        <div id="candidates-wrap"></div>
+      </div>
+      <div class="card">
+        <h2>📡 البث الحي — كل ما يفعله البوت</h2>
+        <div id="feed" class="feed"></div>
+      </div>
+    </section>
+
+    <!-- closed + config -->
+    <section class="grid cols-2" style="margin-top:14px">
+      <div class="card">
+        <h2>🗂 سجل الصفقات المغلقة</h2>
+        <div id="closed-wrap"><div class="empty">لم تُغلق أي صفقة بعد</div></div>
+      </div>
+      <div class="card">
+        <h2>⚙️ إعدادات الاستراتيجية الحية</h2>
+        <div class="config-list" id="config-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Momentum Sniper يعمل على Binance Spot — هذا البوت أداة برمجية وليست نصيحة مالية · تداول العملات الرقمية عالي المخاطر
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
