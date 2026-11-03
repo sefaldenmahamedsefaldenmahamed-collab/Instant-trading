@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>مولّد مفاتيح Ed25519 — قناص الزخم</title>
+<style>
+  :root{--bg:#0b1220;--card:#131c2e;--line:#22304a;--txt:#e8eef7;--mut:#8fa3bf;--acc:#22d3a5;--warn:#f59e0b;--dang:#f87171}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Segoe UI",Tahoma,Arial,sans-serif;background:var(--bg);color:var(--txt);padding:16px;line-height:1.7}
+  .wrap{max-width:640px;margin:0 auto}
+  h1{font-size:1.25rem;margin-bottom:4px}
+  .sub{color:var(--mut);font-size:.85rem;margin-bottom:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+  .why{border-right:4px solid var(--acc);font-size:.85rem;color:var(--mut)}
+  button{font-family:inherit;cursor:pointer;border:0;border-radius:10px;font-weight:700}
+  .gen{background:var(--acc);color:#04211a;width:100%;padding:14px;font-size:1.05rem}
+  .gen:disabled{opacity:.5}
+  .copy{background:var(--line);color:var(--txt);padding:8px 14px;font-size:.85rem}
+  .copy.done{background:var(--acc);color:#04211a}
+  .step{display:none}
+  .step h2{font-size:.95rem;margin-bottom:2px}
+  .step .hint{color:var(--mut);font-size:.8rem;margin-bottom:8px}
+  .keybox{direction:ltr;text-align:left;background:#0a101c;border:1px solid var(--line);border-radius:8px;
+          padding:10px;font-family:monospace;font-size:.72rem;word-break:break-all;white-space:pre-wrap;
+          max-height:150px;overflow-y:auto;color:#a5f3d0;margin-bottom:8px}
+  .ok{color:var(--acc);font-weight:700;font-size:.9rem}
+  .bad{color:var(--dang);font-weight:700;font-size:.9rem}
+  .warn{border-right:4px solid var(--warn);font-size:.82rem;color:#fcd34d}
+  footer{color:var(--mut);font-size:.75rem;text-align:center;margin-top:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🔑 مولّد مفاتيح Ed25519</h1>
+  <p class="sub">مفاتيح لا يحتاج بينانس فيها إلى إظهار أي سر — أنت من يولّدها على جهازك</p>
+
+  <div class="card why">
+    <b>لماذا هذه الأداة؟</b> بينانس تعرض السر (Secret) مرة واحدة فقط عند إنشاء مفتاح HMAC، وكثير من
+    المستخدمين يفقدونه. في مفاتيح Ed25519 لا يوجد شيء تعرضه بينانس أصلاً: أنت تولّد الزوج هنا
+    <b>داخل متصفحك</b>، تسجّل عند بينانس المفتاح <b>العام</b> فقط، وتحفظ المفتاح <b>الخاص</b> عندك.
+    لا شيء يضيع ولا يمكن أن يضيع.
+  </div>
+
+  <div class="card">
+    <button id="gen" class="gen">🔑 توليد المفاتيح الآن</button>
+    <div id="status" style="margin-top:8px;font-size:.85rem;color:var(--mut)"></div>
+  </div>
+
+  <div class="card step" id="step1">
+    <h2>① المفتاح العام — يُسجَّل عند بينانس</h2>
+    <p class="hint">انسخه والصقه في صفحة إدارة API التجريبية عند خيار «تسجيل مفتاح عام / Register Public Key». بينانس ستعطيك رقم API Key — هذا هو الذي تضعه في Render.</p>
+    <div class="keybox" id="pub"></div>
+    <button class="copy" data-t="pub">📋 نسخ المفتاح العام</button>
+    <details style="margin-top:8px"><summary style="color:var(--mut);font-size:.78rem">بصيغة base64 بدلاً من PEM</summary>
+      <div class="keybox" id="pubraw"></div>
+      <button class="copy" data-t="pubraw">📋 نسخ base64</button>
+    </details>
+  </div>
+
+  <div class="card step" id="step2">
+    <h2>② المفتاح الخاص — يُحفَظ في Render فقط</h2>
+    <p class="hint">ضعه في Render داخل المتغير <b>BINANCE_API_SECRET</b> مع <b>BINANCE_AUTH=ed25519</b>. ⚠️ لا ترسله لأي شخص — لا حتى لي.</p>
+    <div class="keybox" id="priv"></div>
+    <button class="copy" data-t="priv">📋 نسخ المفتاح الخاص</button>
+  </div>
+
+  <div class="card warn" id="warncard" style="display:none">
+    ⚠️ احفظ المفتاح الخاص الآن (انسخه في ملاحظاتك أو مدير كلمات المرور). هذه الصفحة لا تحفظ شيئاً —
+    بعد إغلاقها لن تستطيع استعادة المفتاح، وستحتاج لتوليد زوج جديد وتسجيله من جديد. المفتاح الخاص
+    <b>ليس سرياً عند بينانس إطلاقاً</b> — هم لا يعرفونه — سريتك أنت: لا تشاركه.
+  </div>
+
+  <div class="card" id="testcard" style="display:none">
+    <b>اختبار ذاتي للتوقيع:</b> <span id="selftest">…</span>
+  </div>
+
+  <footer>قناص الزخم · أداة محلية 100% — لا يتصل هذا الملف بأي خادم ولا يرسل أي بيانات</footer>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const enc = new TextEncoder();
+
+function b64(buf){
+  return btoa(String.fromCharCode(...new Uint8Array(buf)));
+}
+function toPem(der, label){
+  const b = b64(der), lines = b.match(/.{1,64}/g).join("\n");
+  return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----`;
+}
+async function copyTo(txt, btn){
+  try{ await navigator.clipboard.writeText(txt); }
+  catch(e){  // احتياطي للمتصفحات القديمة
+    const ta=document.createElement("textarea");ta.value=txt;document.body.appendChild(ta);
+    ta.select();document.execCommand("copy");ta.remove();
+  }
+  btn.textContent="✅ تم النسخ";btn.classList.add("done");
+  setTimeout(()=>{btn.textContent=btn.dataset.orig;btn.classList.remove("done");},1800);
+}
+document.querySelectorAll(".copy").forEach(b=>{
+  b.dataset.orig=b.textContent;
+  b.addEventListener("click",()=>copyTo($(b.dataset.t).textContent,b));
+});
+
+$("gen").addEventListener("click", async () => {
+  const s=$("status");
+  try{
+    if(!crypto?.subtle){ s.innerHTML='<span class="bad">متصفحك لا يدعم التشفير الحديث — استخدم Chrome محدثاً</span>'; return; }
+    s.textContent="جارٍ التوليد…"; $("gen").disabled=true;
+
+    const kp = await crypto.subtle.generateKey({name:"Ed25519"}, true, ["sign","verify"]);
+
+    // العام: خام 32 بايت → PEM (SPKI) + base64
+    const pubRaw = new Uint8Array(await crypto.subtle.exportKey("raw", kp.publicKey));
+    const spkiPrefix = new Uint8Array([0x30,0x2a,0x30,0x05,0x06,0x03,0x2b,0x65,0x70,0x03,0x21,0x00]);
+    const spki = new Uint8Array(spkiPrefix.length + pubRaw.length);
+    spki.set(spkiPrefix); spki.set(pubRaw, spkiPrefix.length);
+    $("pub").textContent  = toPem(spki, "PUBLIC KEY");
+    $("pubraw").textContent = b64(pubRaw);
+
+    // الخاص: PKCS#8 (48 بايت) — البذرة هي آخر 32 بايت
+    const pkcs8 = new Uint8Array(await crypto.subtle.exportKey("pkcs8", kp.privateKey));
+    const seed = pkcs8.slice(pkcs8.length - 32);
+    $("priv").textContent = b64(seed);
+
+    // اختبار ذاتي: وقّع وتحقق
+    const msg = enc.encode("momentum-sniper self test");
+    const sig = await crypto.subtle.sign({name:"Ed25519"}, kp.privateKey, msg);
+    const ok  = await crypto.subtle.verify({name:"Ed25519"}, kp.publicKey, sig, msg);
+    $("selftest").innerHTML = ok
+      ? '<span class="ok">✅ نجح — الزوج سليم وجاهز</span>'
+      : '<span class="bad">❌ فشل — أعد التوليد</span>';
+
+    $("step1").style.display="block"; $("step2").style.display="block";
+    $("warncard").style.display="block"; $("testcard").style.display="block";
+    s.innerHTML='<span class="ok">تم التوليد — انسخ القيمتين الآن بهدوء، لا يوجد عدّاد وقت هذه المرة 😄</span>';
+    $("gen").textContent="🔄 توليد زوج جديد (استبدال كامل)";
+    $("gen").disabled=false;
+  }catch(e){
+    s.innerHTML='<span class="bad">خطأ: '+e.message+'</span>';
+    $("gen").disabled=false;
+  }
+});
+</script>
+</body>
+</html>
