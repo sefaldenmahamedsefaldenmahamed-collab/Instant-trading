@@ -1,0 +1,52 @@
+# Momentum Sniper — Blueprint للنشر على Render
+# ارفع المشروع إلى GitHub ثم: Render Dashboard → New → Blueprint → اختر المستودع
+services:
+  - type: web
+    name: momentum-sniper
+    runtime: python
+    plan: starter                 # free يعمل أيضاً لكن مع إسبان (sleep) — غير مناسب لبوت 24/7
+    # يثبّت المكتبات ثم يفك ضغط الحزمة المرفوعة من الهاتف
+    buildCommand: pip install -r requirements.txt && python -c "import zipfile,glob; zipfile.ZipFile(glob.glob('*.zip')[0]).extractall('.')"
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: MODE
+        value: paper              # غيّرها إلى testnet أو live بعد التجربة
+      - key: PAPER_START_BALANCE
+        value: "100"
+      - key: TRADE_ALLOCATION_PCT
+        value: "10"
+      - key: MAX_CONCURRENT_TRADES
+        value: "3"
+      - key: MAX_TRADES_PER_DAY
+        value: "6"
+      - key: HARD_STOP_LOSS_PCT
+        value: "-12"
+      - key: TP_LADDER
+        value: "100:30,250:30,500:40"
+      - key: TRAIL_TRIGGER_PCT
+        value: "30"
+      - key: TRAIL_DROP_PCT
+        value: "15"
+      - key: ENTRY_SCORE_THRESHOLD
+        value: "78"
+      - key: FOMO_BLOCK_24H_PCT
+        value: "80"
+      - key: SCAN_INTERVAL_SEC
+        value: "60"
+      - key: NEW_LISTING_SNIPE
+        value: "true"
+      - key: AUTOPSY_LEARNING
+        value: "true"
+      - key: REDDIT_ENABLED
+        value: "true"
+      # ⚠️ الأسرار تُدخل يدوياً من لوحة Render (Environment) — لا تضعها هنا أبداً:
+      - key: BINANCE_API_KEY
+        sync: false
+      - key: BINANCE_API_SECRET
+        sync: false
+    # قرص دائم لحفظ قاعدة البيانات (يتطلب خطة مدفوعة) — فعّله إن أردت حفظ السجل بعد إعادة النشر:
+    # disk:
+    #   name: momentum-data
+    #   mountPath: /app/data
+    #   sizeGB: 1
