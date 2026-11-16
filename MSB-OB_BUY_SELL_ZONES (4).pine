@@ -1,0 +1,361 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © EmreKb  — Enhanced version with clear BUY / SELL zones
+
+//@version=5
+indicator("Market Structure Break & Order Block [BUY/SELL ZONES]", "MSB-OB BUY/SELL", overlay=true, max_lines_count=500, max_bars_back=4900, max_boxes_count=500, max_labels_count=500)
+
+// ============================================================================
+//  الإعدادات العامة  /  General Settings
+// ============================================================================
+settings = "Settings"
+zigzag_len  = input.int(9, "ZigZag Length", group=settings)
+show_zigzag = input.bool(true, "Show Zigzag", group=settings)
+fib_factor  = input.float(0.33, "Fib Factor for breakout confirmation", 0, 1, 0.01, group=settings)
+text_size   = input.string(size.tiny, "Text Size", [size.tiny, size.small, size.normal, size.large, size.huge], group=settings)
+delete_boxes = input.bool(true, "Delete Old/Broken Boxes", group=settings)
+
+// ============================================================================
+//  إعدادات عرض مناطق الشراء والبيع  /  BUY / SELL ZONE display settings
+// ============================================================================
+zones_group = "BUY / SELL ZONES (Clear Zones)"
+
+show_zones        = input.bool(true,  "Show Clear BUY/SELL ZONES", group=zones_group)
+zone_text_size    = input.string(size.normal, "Zone Label Size", [size.tiny, size.small, size.normal, size.large, size.huge], group=zones_group)
+extend_zones      = input.bool(true,  "Extend Zones to Right", group=zones_group)
+
+// منطقة الشراء  /  BUY ZONE
+buy_zone_color        = input.color(color.new(color.green, 75), "Buy Zone Fill",  group=zones_group, inline="buyz")
+buy_zone_border_color = input.color(color.green,                "Buy Zone Border", group=zones_group, inline="buyz")
+buy_zone_text_color   = input.color(color.white,                 "Buy Zone Text",  group=zones_group, inline="buyz")
+
+// منطقة البيع  /  SELL ZONE
+sell_zone_color        = input.color(color.new(color.red, 75),  "Sell Zone Fill",  group=zones_group, inline="sellz")
+sell_zone_border_color = input.color(color.red,                  "Sell Zone Border", group=zones_group, inline="sellz")
+sell_zone_text_color   = input.color(color.white,                 "Sell Zone Text",  group=zones_group, inline="sellz")
+
+// تظليل الشموع داخل المناطق  /  Candle background highlight inside zones
+highlight_candles = input.bool(true, "Highlight Candles Inside Zones", group=zones_group)
+bu_candle_color   = input.color(color.new(color.green, 55), "Buy Candle BG",  group=zones_group, inline="candle")
+be_candle_color   = input.color(color.new(color.red,   55), "Sell Candle BG", group=zones_group, inline="candle")
+
+// خطوط أفقية لأسعار الدخول  /  Horizontal entry price lines
+show_entry_lines = input.bool(true, "Show Entry Price Lines", group=zones_group)
+
+// ============================================================================
+//  ألوان صناديق OB و BB الأصلية  /  Original OB / BB colors
+// ============================================================================
+bu_ob_inline_color = "Bu-OB Colors"
+be_ob_inline_color = "Be-OB Colors"
+bu_bb_inline_color = "Bu-BB Colors"
+be_bb_inline_color = "Be-BB Colors"
+
+bu_ob_display_settings = "Bu-OB Display Settings"
+bu_ob_color = input.color(color.new(color.green, 70), "Color", group=bu_ob_display_settings, inline=bu_ob_inline_color)
+bu_ob_border_color = input.color(color.green, "Border Color", group=bu_ob_display_settings, inline=bu_ob_inline_color)
+bu_ob_text_color = input.color(color.green, "Text Color", group=bu_ob_display_settings, inline=bu_ob_inline_color)
+
+be_ob_display_settings = "Be-OB Display Settings"
+be_ob_color = input.color(color.new(color.red, 70), "Color", group=be_ob_display_settings, inline=be_ob_inline_color)
+be_ob_border_color = input.color(color.red, "Border Color", group=be_ob_display_settings, inline=be_ob_inline_color)
+be_ob_text_color = input.color(color.red, "Text Color", group=be_ob_display_settings, inline=be_ob_inline_color)
+
+bu_bb_display_settings = "Bu-BB & Bu-MB Display Settings"
+bu_bb_color = input.color(color.new(color.green, 70), "Color", group=bu_bb_display_settings, inline=bu_bb_inline_color)
+bu_bb_border_color = input.color(color.green, "Border Color", group=bu_bb_display_settings, inline=bu_bb_inline_color)
+bu_bb_text_color = input.color(color.green, "Text Color", group=bu_bb_display_settings, inline=bu_bb_inline_color)
+
+be_bb_display_settings = "Be-BB & Be-MB Display Settings"
+be_bb_color = input.color(color.new(color.red, 70), "Color", group=be_bb_display_settings, inline=be_bb_inline_color)
+be_bb_border_color = input.color(color.red, "Border Color", group=be_bb_display_settings, inline=be_bb_inline_color)
+be_bb_text_color = input.color(color.red, "Text Color", group=be_bb_display_settings, inline=be_bb_inline_color)
+
+
+// ============================================================================
+//  المصفوفات  /  Arrays
+// ============================================================================
+var float[] high_points_arr = array.new_float(5)
+var int[]   high_index_arr  = array.new_int(5)
+var float[] low_points_arr  = array.new_float(5)
+var int[]   low_index_arr   = array.new_int(5)
+
+var box[] bu_ob_boxes = array.new_box(5)
+var box[] be_ob_boxes = array.new_box(5)
+var box[] bu_bb_boxes = array.new_box(5)
+var box[] be_bb_boxes = array.new_box(5)
+
+// صناديق مناطق الشراء والبيع الواضحة  /  Clear BUY / SELL zone boxes
+var box[] buy_zone_boxes  = array.new_box(50)
+var box[] sell_zone_boxes = array.new_box(50)
+
+// خطوط أسعار الدخول  /  Entry price lines
+var line[] buy_entry_lines  = array.new_line(50)
+var line[] sell_entry_lines = array.new_line(50)
+
+// تتبع حالة التواجد في المنطقة (لإطلاق التنبيه مرة واحدة)  /  In-zone state tracking
+var bool in_buy_zone  = false
+var bool in_sell_zone = false
+
+to_up   = high >= ta.highest(zigzag_len)
+to_down = low  <= ta.lowest(zigzag_len)
+
+trend = 1
+trend := nz(trend[1], 1)
+trend := trend == 1 and to_down ? -1 : trend == -1 and to_up ? 1 : trend
+
+last_trend_up_since = ta.barssince(to_up[1])
+low_val   = ta.lowest(nz(last_trend_up_since   > 0 ? last_trend_up_since   : 1, 1))
+low_index = bar_index - ta.barssince(low_val == low)
+
+last_trend_down_since = ta.barssince(to_down[1])
+high_val   = ta.highest(nz(last_trend_down_since > 0 ? last_trend_down_since : 1, 1))
+high_index = bar_index - ta.barssince(high_val == high)
+
+if ta.change(trend) != 0
+    if trend == 1
+        array.push(low_points_arr, low_val)
+        array.push(low_index_arr,  low_index)
+    if trend == -1
+        array.push(high_points_arr, high_val)
+        array.push(high_index_arr,  high_index)
+
+
+f_get_high(ind) =>
+    [array.get(high_points_arr, array.size(high_points_arr) - 1 - ind), array.get(high_index_arr, array.size(high_index_arr) - 1 - ind)]
+
+f_get_low(ind) =>
+    [array.get(low_points_arr, array.size(low_points_arr) - 1 - ind), array.get(low_index_arr, array.size(low_index_arr) - 1 - ind)]
+
+f_delete_box(box_arr) =>
+    if delete_boxes
+        box.delete(array.shift(box_arr))
+    else
+        array.shift(box_arr)
+    0
+
+
+[h0, h0i] = f_get_high(0)
+[h1, h1i] = f_get_high(1)
+
+[l0, l0i] = f_get_low(0)
+[l1, l1i] = f_get_low(1)
+
+if ta.change(trend) != 0 and show_zigzag
+    if trend == 1
+        line.new(h0i, h0, l0i, l0)
+    if trend == -1
+        line.new(l0i, l0, h0i, h0)
+
+market = 1
+market := nz(market[1], 1)
+last_l0 = ta.valuewhen(ta.change(market) != 0, l0, 0)
+last_h0 = ta.valuewhen(ta.change(market) != 0, h0, 0)
+market := last_l0 == l0 or last_h0 == h0 ? market : market == 1 and l0 < l1 and l0 < l1 - math.abs(h0 - l1) * fib_factor ? -1 : market == -1 and h0 > h1 and h0 > h1 + math.abs(h1 - l0) * fib_factor ? 1 : market
+
+bu_ob_index = bar_index
+bu_ob_index := nz(bu_ob_index[1], bar_index)
+for i = h1i to l0i[zigzag_len]
+    index = bar_index - i
+    if open[index] > close[index]
+        bu_ob_index := bar_index[index]
+
+bu_ob_since = bar_index - bu_ob_index
+
+be_ob_index = bar_index
+be_ob_index := nz(be_ob_index[1], bar_index)
+for i = l1i to h0i[zigzag_len]
+    index = bar_index - i
+    if open[index] < close[index]
+        be_ob_index := bar_index[index]
+
+be_ob_since = bar_index - be_ob_index
+
+be_bb_index = bar_index
+be_bb_index := nz(be_bb_index[1], bar_index)
+for i = h1i - zigzag_len to l1i
+    index = bar_index - i
+    if open[index] > close[index]
+        be_bb_index := bar_index[index]
+
+be_bb_since = bar_index - be_bb_index
+
+bu_bb_index = bar_index
+bu_bb_index := nz(bu_bb_index[1], bar_index)
+for i = l1i - zigzag_len to h1i
+    index = bar_index - i
+    if open[index] < close[index]
+        bu_bb_index := bar_index[index]
+
+bu_bb_since = bar_index - bu_bb_index
+
+zone_right  = bar_index + 10
+zone_extend = extend_zones ? extend.right : extend.none
+
+// ============================================================================
+//  إنشاء مناطق الشراء والبيع الواضحة  /  Create clear BUY / SELL zones on MSB
+// ============================================================================
+if ta.change(market) != 0
+    if market == 1
+        line.new(h1i, h1, h0i, h1, color=color.green, width=2)
+        label.new(int(math.avg(h1i, l0i)), h1, "MSB", color=color.new(color.black, 100), style=label.style_label_down, textcolor=color.green, size=size.small)
+
+        bu_ob = box.new(bu_ob_index, high[bu_ob_since], bar_index + 10, low[bu_ob_since], bgcolor=bu_ob_color, border_color=bu_ob_border_color, text="Bu-OB", text_color=bu_ob_text_color, text_halign=text.align_right, text_size=text_size)
+        bu_bb = box.new(bu_bb_index, high[bu_bb_since], bar_index + 10, low[bu_bb_since], bgcolor=bu_bb_color, border_color=bu_bb_border_color, text=l0 < l1 ? "Bu-BB" : "Bu-MB", text_color=bu_bb_text_color, text_halign=text.align_right, text_size=text_size)
+        array.push(bu_ob_boxes, bu_ob)
+        array.push(bu_bb_boxes, bu_bb)
+
+        // ===== منطقة الشراء الواضحة  /  Clear BUY ZONE =====
+        if show_zones
+            buy_zone_top    = high[bu_ob_since]
+            buy_zone_bottom = low[bu_ob_since]
+            buy_lbl = "BUY ZONE"
+            bz = box.new(bu_ob_index, buy_zone_top, zone_right, buy_zone_bottom, bgcolor=buy_zone_color, border_color=buy_zone_border_color, border_width=2, text=buy_lbl, text_color=buy_zone_text_color, text_halign=text.align_center, text_valign=text.align_center, text_size=zone_text_size, extend=zone_extend)
+            array.push(buy_zone_boxes, bz)
+            // خط أفقي لسعر الدخول (منتصف المنطقة)  /  Entry price line at zone mid
+            if show_entry_lines
+                mid_price = (buy_zone_top + buy_zone_bottom) / 2
+                le = line.new(bu_ob_index, mid_price, zone_right, mid_price, color=buy_zone_border_color, style=line.style_dashed, width=1, extend=zone_extend)
+                array.push(buy_entry_lines, le)
+
+    if market == -1
+        line.new(l1i, l1, l0i, l1, color=color.red, width=2)
+        label.new(int(math.avg(l1i, h0i)), l1, "MSB", color=color.new(color.black, 100), style=label.style_label_up, textcolor=color.red, size=size.small)
+
+        be_ob = box.new(be_ob_index, high[be_ob_since], bar_index + 10, low[be_ob_since], bgcolor=be_ob_color, border_color=be_ob_border_color, text="Be-OB", text_color=be_ob_text_color, text_halign=text.align_right, text_size=text_size)
+        be_bb = box.new(be_bb_index, high[be_bb_since], bar_index + 10, low[be_bb_since], bgcolor=be_bb_color, border_color=be_bb_border_color, text=h0 > h1 ? "Be-BB" : "Be-MB", text_color=be_bb_text_color, text_halign=text.align_right, text_size=text_size)
+        array.push(be_ob_boxes, be_ob)
+        array.push(be_bb_boxes, be_bb)
+
+        // ===== منطقة البيع الواضحة  /  Clear SELL ZONE =====
+        if show_zones
+            sell_zone_top    = high[be_ob_since]
+            sell_zone_bottom = low[be_ob_since]
+            sell_lbl = "SELL ZONE"
+            sz = box.new(be_ob_index, sell_zone_top, zone_right, sell_zone_bottom, bgcolor=sell_zone_color, border_color=sell_zone_border_color, border_width=2, text=sell_lbl, text_color=sell_zone_text_color, text_halign=text.align_center, text_valign=text.align_center, text_size=zone_text_size, extend=zone_extend)
+            array.push(sell_zone_boxes, sz)
+            if show_entry_lines
+                mid_price = (sell_zone_top + sell_zone_bottom) / 2
+                le = line.new(be_ob_index, mid_price, zone_right, mid_price, color=sell_zone_border_color, style=line.style_dashed, width=1, extend=zone_extend)
+                array.push(sell_entry_lines, le)
+
+// ============================================================================
+//  تحديث صناديق OB الأصلية  /  Update original OB / BB boxes
+// ============================================================================
+for bull_ob in bu_ob_boxes
+    bx_bottom = box.get_bottom(bull_ob)
+    bx_top    = box.get_top(bull_ob)
+    if close < bx_bottom
+        f_delete_box(bu_ob_boxes)
+    else if close < bx_top
+        alert("Price in the BU-OB zone")
+    else
+        box.set_right(bull_ob, bar_index + 10)
+
+for bear_ob in be_ob_boxes
+    bx_top    = box.get_top(bear_ob)
+    bx_bottom = box.get_bottom(bear_ob)
+    if close > bx_top
+        f_delete_box(be_ob_boxes)
+    if close > bx_bottom
+        alert("Price in the BE-OB zone")
+    else
+        box.set_right(bear_ob, bar_index + 10)
+
+for bear_bb in be_bb_boxes
+    bx_top    = box.get_top(bear_bb)
+    bx_bottom = box.get_bottom(bear_bb)
+    if close > bx_top
+        f_delete_box(be_bb_boxes)
+    else if close > bx_bottom
+        alert("Price in the BE-BB zone")
+    else
+        box.set_right(bear_bb, bar_index + 10)
+
+for bull_bb in bu_bb_boxes
+    bx_bottom = box.get_bottom(bull_bb)
+    bx_top    = box.get_top(bull_bb)
+    if close < bx_bottom
+        f_delete_box(bu_bb_boxes)
+    else if close < bx_top
+        alert("Price in the BU-BB zone")
+    else
+        box.set_right(bull_bb, bar_index + 10)
+
+// ============================================================================
+//  تحديث ومراقبة مناطق الشراء الواضحة  /  Manage BUY ZONES
+// ============================================================================
+buy_zone_active = false
+for bz in buy_zone_boxes
+    bz_bottom = box.get_bottom(bz)
+    bz_top    = box.get_top(bz)
+    if close < bz_bottom
+        // كسر منطقة الشراء لأسفل → حذف  /  Broken downward → delete
+        if delete_boxes
+            box.delete(array.shift(buy_zone_boxes))
+        else
+            array.shift(buy_zone_boxes)
+    else if close <= bz_top and close >= bz_bottom
+        // السعر داخل منطقة الشراء  /  Price inside BUY ZONE
+        buy_zone_active := true
+        if not in_buy_zone
+            alert("BUY ZONE - Price entered the BUY zone. Potential long opportunity.")
+        if not extend_zones
+            box.set_right(bz, bar_index + 10)
+    else
+        if not extend_zones
+            box.set_right(bz, bar_index + 10)
+
+in_buy_zone := buy_zone_active
+
+// تحديث خطوط أسعار الدخول للشراء  /  Update buy entry price lines
+if not extend_zones
+    for le in buy_entry_lines
+        line.set_x2(le, bar_index + 10)
+
+// ============================================================================
+//  تحديث ومراقبة مناطق البيع الواضحة  /  Manage SELL ZONES
+// ============================================================================
+sell_zone_active = false
+for sz in sell_zone_boxes
+    sz_top    = box.get_top(sz)
+    sz_bottom = box.get_bottom(sz)
+    if close > sz_top
+        // كسر منطقة البيع لأعلى → حذف  /  Broken upward → delete
+        if delete_boxes
+            box.delete(array.shift(sell_zone_boxes))
+        else
+            array.shift(sell_zone_boxes)
+    else if close >= sz_bottom and close <= sz_top
+        // السعر داخل منطقة البيع  /  Price inside SELL ZONE
+        sell_zone_active := true
+        if not in_sell_zone
+            alert("SELL ZONE - Price entered the SELL zone. Potential short opportunity.")
+        if not extend_zones
+            box.set_right(sz, bar_index + 10)
+    else
+        if not extend_zones
+            box.set_right(sz, bar_index + 10)
+
+in_sell_zone := sell_zone_active
+
+if not extend_zones
+    for le in sell_entry_lines
+        line.set_x2(le, bar_index + 10)
+
+// ============================================================================
+//  تظليل خلفية الشموع داخل المناطق  /  Background candle highlight inside zones
+// ============================================================================
+bgcolor(highlight_candles and buy_zone_active  ? bu_candle_color : na, title="Buy Zone Candle BG")
+bgcolor(highlight_candles and sell_zone_active ? be_candle_color : na, title="Sell Zone Candle BG")
+
+// ============================================================================
+//  مؤشرات حالة المنطقة (للنافذة والتنبيهات)  /  Zone state plots
+// ============================================================================
+plot(buy_zone_active  ? 1 : 0, title="In Buy Zone",  color=color.new(color.green, 100), display=display.none)
+plot(sell_zone_active ? 1 : 0, title="In Sell Zone", color=color.new(color.red,   100), display=display.none)
+
+// ============================================================================
+//  التنبيهات  /  Alerts
+// ============================================================================
+alertcondition(ta.change(market) != 0, "MSB", "MSB - Market Structure Break")
+alertcondition(buy_zone_active  and not buy_zone_active[1],  "BUY ZONE",  "Price entered BUY ZONE - potential long")
+alertcondition(sell_zone_active and not sell_zone_active[1], "SELL ZONE", "Price entered SELL ZONE - potential short")
